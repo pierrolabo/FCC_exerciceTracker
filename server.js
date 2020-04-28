@@ -1,15 +1,17 @@
 const express = require('express');
 const app = express();
 const bodyParser = require('body-parser');
-
+const url = require('url');
+const querystring = require('querystring');
 const cors = require('cors');
+const autoIncrement = require('mongoose-auto-increment');
 
 const mongoose = require('mongoose');
 
-mongoose.connect(
+var connection = mongoose.createConnection(
   'mongodb+srv://miguel:Azerty44@cluster0-dxc9v.mongodb.net/test?retryWrites=true&w=majority'
 );
-
+autoIncrement.initialize(connection);
 app.use(cors());
 
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -19,6 +21,7 @@ app.use(express.static('public'));
 
 //  Database
 let userSchema = new mongoose.Schema({
+  id: { type: Number, ref: 'id' },
   name: String,
 });
 
@@ -28,8 +31,11 @@ let exerciseSchema = new mongoose.Schema({
   duration: Number,
   date: { type: Date, default: Date.now },
 });
-let User = mongoose.model('user', userSchema);
-let Exercice = mongoose.model('exercice', exerciseSchema);
+
+userSchema.plugin(autoIncrement.plugin, 'user');
+let User = connection.model('user', userSchema);
+//let User = mongoose.model('user', userSchema);
+let Exercice = connection.model('exercice', exerciseSchema);
 
 //  Routes
 app.get('/', function (req, res) {
@@ -58,10 +64,10 @@ app.get('/api/exercise/users', function (req, res) {
   });
 });
 
-//  Exercice
+//  Add Exercice
 app.post('/api/exercise/add', function (req, res) {
   const exercice = {
-    userId: req.body.userId,
+    userId: parseInt(req.body.userId),
     description: req.body.description,
     duration: req.body.duration,
   };
@@ -76,6 +82,31 @@ app.post('/api/exercise/add', function (req, res) {
   });
 });
 
+//  Get exercices from User
+app.get('/api/exercise/log', function (req, res) {
+  const userLog = {};
+  let query = req.query;
+  console.log('query', query.userId);
+  if (query.userId !== undefined) {
+    User.findById(query.userId, function (err, result) {
+      if (err) console.log(err);
+      return result;
+    }).then((user) => {
+      Exercice.find({ userId: query.userId }, function (err, result) {
+        if (err) console.log(err);
+        user.test = 4;
+
+        let count = result.length;
+        res.json({
+          result: result,
+          user: user,
+        });
+      });
+    });
+  } else {
+    res.json({ error: 'no userId' });
+  }
+});
 //Check if the date is valid
 const isValidDate = (str) => {
   let date = new Date(str);
